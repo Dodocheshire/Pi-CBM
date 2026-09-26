@@ -1,0 +1,4 @@
+backbone:
+  name: resnet50
+injection:
+  point: pre_layer4

@@ -1,0 +1,6 @@
+# Same split, projection and sparse head; only change the listed dimensions.
+base: ../experiment/cifar10_global.yaml
+grid:
+  noise.parameterization: [fixed_gaussian, mean_scale]
+  noise.generator: [mlp, concept_cross_attention]
+  experiment.seed: [0]

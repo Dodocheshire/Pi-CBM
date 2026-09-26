@@ -1,0 +1,4 @@
+backbone:
+  name: clip_RN50
+injection:
+  point: pre_attnpool
