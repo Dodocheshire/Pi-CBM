@@ -4,9 +4,10 @@ from copy import deepcopy
 
 import torch
 from torch.nn import functional as F
-from torch.utils.data import DataLoader, TensorDataset
 
 from ..evaluation import evaluate, predict
+from ..inputs import input_loader
+from ..precision import adapter_autocast
 from ..randomness import seeded
 from .lfcbm import cos_cubed, fit_saga_head
 
@@ -29,43 +30,44 @@ def adapt(model, data, clean_concepts, selected, config, device):
         optimizer = torch.optim.Adam(groups)
         trainable = [parameter for group in groups for parameter in group["params"]]
         train = data["splits"]["train"]
-        dataset = TensorDataset(
-            train[model.injection.cache_key],
-            train["labels"],
-            clean_concepts["train"],
-            train["teacher"][:, selected],
-        )
         # The same seed gives the same sample order across noise variants;
         # sampling noise cannot advance the data-shuffle RNG.
         shuffle_rng = torch.Generator().manual_seed(config["experiment"]["seed"])
-        loader = DataLoader(
-            dataset,
+        loader = input_loader(
+            train,
+            model,
+            config,
+            train["labels"],
+            clean_concepts["train"],
+            train["teacher"][:, selected],
             batch_size=settings["batch_size"],
             shuffle=True,
             generator=shuffle_rng,
-            pin_memory=device.startswith("cuda"),
         )
         best_nll = float("inf")
         for epoch in range(settings["epochs"]):
             model.train()
-            total_loss = 0.0
+            total_loss = torch.zeros((), device=device)
             for inputs, labels, anchor, teacher in loader:
-                inputs, labels = inputs.float().to(device), labels.to(device)
-                anchor, teacher = anchor.to(device), teacher.to(device)
+                inputs = model.prepare_inputs(inputs.to(device, non_blocking=True))
+                labels = labels.to(device, non_blocking=True)
+                anchor = anchor.to(device, non_blocking=True)
+                teacher = teacher.to(device, non_blocking=True)
                 optimizer.zero_grad(set_to_none=True)
-                logits, concepts, energy = model(inputs)
-                loss = F.cross_entropy(logits, labels)
-                loss += settings["concept_anchor_weight"] * F.mse_loss(concepts, anchor)
-                loss += settings["noise_energy_weight"] * energy
-                if settings["stage"] == "finetune_projection":
-                    loss += settings["teacher_alignment_weight"] * (
-                        1 - cos_cubed(teacher, concepts).mean()
-                    )
+                with adapter_autocast(config):
+                    logits, concepts, energy = model(inputs)
+                    loss = F.cross_entropy(logits, labels)
+                    loss += settings["concept_anchor_weight"] * F.mse_loss(concepts, anchor)
+                    loss += settings["noise_energy_weight"] * energy
+                    if settings["stage"] == "finetune_projection":
+                        loss += settings["teacher_alignment_weight"] * (
+                            1 - cos_cubed(teacher, concepts).mean()
+                        )
                 loss.backward()
                 # One shared norm covers the generator and trainable projection.
                 torch.nn.utils.clip_grad_norm_(trainable, settings["grad_clip_norm"])
                 optimizer.step()
-                total_loss += loss.item() * len(labels)
+                total_loss += loss.detach() * len(labels)
             # Common random draws make validation comparisons less noisy and
             # do not consume the training RNG stream.
             with seeded(config["experiment"]["seed"] + 1000):
@@ -74,7 +76,7 @@ def adapt(model, data, clean_concepts, selected, config, device):
                 )
             record = {
                 "epoch": epoch + 1,
-                "train_loss": total_loss / len(dataset),
+                "train_loss": (total_loss / len(loader.dataset)).item(),
                 "val": validation,
             }
             history.append(record)
@@ -99,11 +101,13 @@ def adapt(model, data, clean_concepts, selected, config, device):
             for split_name in ("train", "val"):
                 values = []
                 split = data["splits"][split_name]
-                inputs = split[model.injection.cache_key]
-                for start in range(0, len(inputs), config["data"]["batch_size"]):
-                    stop = start + config["data"]["batch_size"]
-                    _, concepts = predict(model, inputs[start:stop].float().to(device))
-                    values.append(concepts.cpu())
+                loader = input_loader(split, model, config, batch_size=config["data"]["batch_size"])
+                for (inputs,) in loader:
+                    inputs = model.prepare_inputs(inputs.to(device, non_blocking=True))
+                    with adapter_autocast(config):
+                        _, concepts = predict(model, inputs)
+                    # SAGA's FP32 linear head expects a fixed FP32 concept table.
+                    values.append(concepts.float().cpu())
                 cached[split_name] = torch.cat(values)
         refit_metrics = fit_saga_head(
             model.cbm.head,

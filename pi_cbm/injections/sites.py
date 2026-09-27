@@ -17,14 +17,15 @@ def from_tokens(tokens: torch.Tensor, shape: torch.Size) -> torch.Tensor:
     return tokens.transpose(1, 2).reshape(shape)
 
 
-def channel_scale(values: torch.Tensor) -> torch.Tensor:
-    """Channel RMS from training data; clamp only avoids division by zero."""
-    # Accumulate in batches instead of materializing a large spatial cache.
-    total = torch.zeros(values.shape[1])
+def channel_scale(values) -> torch.Tensor:
+    """Channel RMS from a tensor or streamed batches of training features."""
+    batches = values.split(64) if isinstance(values, torch.Tensor) else values
+    total = None
     count = 0
-    for batch in values.split(64):
+    for batch in batches:
         tokens = to_tokens(batch.float())
-        total += tokens.square().sum(dim=(0, 1))
+        squared = tokens.square().sum(dim=(0, 1)).cpu()
+        total = squared if total is None else total + squared
         count += tokens.shape[0] * tokens.shape[1]
     return (total / count).sqrt().clamp_min(1e-6)
 

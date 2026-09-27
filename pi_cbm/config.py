@@ -42,19 +42,33 @@ def validate(config: dict) -> None:
     if "experiment" not in config or "training" not in config:
         return
     choices = {
-        ("data", "dataset"): {"cifar10", "cifar100", "cub", "places365"},
+        ("data", "dataset"): {"cifar10", "cifar100", "cub", "places365", "imagenet"},
         ("injection", "site"): {"baseline", "target_image", "target_global", "target_internal"},
         ("noise", "parameterization"): {"fixed_gaussian", "mean_scale"},
         ("noise", "generator"): {"mlp", "concept_cross_attention"},
         ("training", "stage"): {"generator_only", "refit_head", "finetune_projection"},
+        ("training", "precision"): {"float32", "bfloat16"},
     }
     for (section, key), values in choices.items():
         if config[section][key] not in values:
             raise ValueError(f"{section}.{key} must be one of {sorted(values)}")
+    input_mode = config["data"].get("input_mode", "cache")
+    if input_mode not in {"cache", "stream"}:
+        raise ValueError("data.input_mode must be cache or stream")
+    if input_mode == "stream" and config["data"]["dataset"] not in {
+        "cub",
+        "places365",
+        "imagenet",
+    }:
+        raise ValueError("Streamed inputs require source image paths")
     if config["training"]["epochs"] < 1 or config["noise"]["initial_scale"] <= 0:
         raise ValueError("training.epochs and noise.initial_scale must be positive")
-    if config["injection"]["site"] == "target_image" and not config["data"]["cache_images"]:
-        raise ValueError("Image injection requires data.cache_images=true")
+    if config["injection"]["site"] == "target_image" and not (
+        config["data"]["cache_images"] or input_mode == "stream"
+    ):
+        raise ValueError(
+            "Image injection requires data.cache_images=true or data.input_mode=stream"
+        )
     if config["injection"]["site"] == "target_image" and config["injection"]["point"] != "input":
         raise ValueError("Image injection requires point=input")
     if config["injection"]["site"] == "target_internal":
@@ -64,9 +78,11 @@ def validate(config: dict) -> None:
             "resnet18_cub": "pre_stage4",
             "clip_RN50": "pre_attnpool",
         }[config["backbone"]["name"]]
-        if config["injection"]["point"] != expected or not config["data"]["cache_internal"]:
+        if config["injection"]["point"] != expected or not (
+            config["data"]["cache_internal"] or input_mode == "stream"
+        ):
             raise ValueError(
-                f"Internal injection requires point={expected} and cache_internal=true"
+                f"Internal injection requires point={expected} and cached or streamed inputs"
             )
     if (
         config["injection"]["site"] == "baseline"

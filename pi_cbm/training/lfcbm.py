@@ -26,16 +26,22 @@ def cos_cubed(target: torch.Tensor, predicted: torch.Tensor) -> torch.Tensor:
 
 
 def cbm_training_data(data, include_adapter_val):
-    """Reassemble official CIFAR training order without duplicating image caches."""
+    """Restore the full training order with one output allocation per tensor."""
     train = data["splits"]["train"]
     if not include_adapter_val:
         return train
     val = data["splits"]["val"]
     order = torch.cat([train["indices"], val["indices"]]).argsort()
-    return {
-        key: torch.cat([train[key], val[key]])[order]
-        for key in ("features", "teacher", "labels", "indices")
-    }
+    positions = torch.empty_like(order)
+    positions[order] = torch.arange(len(order))
+    train_positions, val_positions = positions.split((len(train["indices"]), len(val["indices"])))
+    combined = {}
+    for key in ("features", "teacher", "labels", "indices"):
+        values = train[key].new_empty((len(order), *train[key].shape[1:]))
+        values.index_copy_(0, train_positions, train[key])
+        values.index_copy_(0, val_positions, val[key])
+        combined[key] = values
+    return combined
 
 
 def fit_projection(train_x, train_s, val_x, val_s, settings, device):
@@ -115,6 +121,8 @@ def fit_lfcbm(data, config, device):
     activation = train["teacher"].topk(5, dim=0).values.mean(0)
     active = activation > settings["activation_cutoff"]
     train_s, val_s = train["teacher"][:, active], validation["teacher"][order][:, active]
+    if settings["include_adapter_val"]:
+        del train["teacher"]
     weight, projection_metrics = fit_projection(
         train["features"], train_s, val_x, val_s, settings, device
     )
@@ -124,6 +132,7 @@ def fit_lfcbm(data, config, device):
         ).cpu()
         keep = scores > settings["interpretability_cutoff"]
         selected = active.nonzero().flatten()[keep]
+        del train_s, val_s
         cbm = ConceptBottleneck(train["features"].shape[1], len(selected), len(data["classes"]))
         cbm.projection.weight.copy_(weight[keep])
         # Same sample standard deviation and FP32 CPU calculation as upstream.
@@ -131,6 +140,7 @@ def fit_lfcbm(data, config, device):
         cbm.concept_mean.copy_(raw_train.mean(0))
         cbm.concept_std.copy_(raw_train.std(0))
         train_c = (raw_train - cbm.concept_mean) / cbm.concept_std
+        del raw_train
         val_c = cbm.concepts(val_x)
     cbm = cbm.to(device)
     head_metrics = fit_saga_head(cbm.head, train_c, train["labels"], val_c, val_y, settings["head"])

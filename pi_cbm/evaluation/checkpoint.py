@@ -18,11 +18,14 @@ def restore_model(saved: dict, device: str, suffix: nn.Module | None = None) -> 
     cbm = ConceptBottleneck(weight.shape[1], weight.shape[0], state["head.weight"].shape[0])
     cbm.load_state_dict(state)
     injection = build_injection(config["injection"]["site"])
+    prefix = None
     if suffix is None:
         suffix = nn.Identity()
         if injection.cache_key in {"images", "internal"}:
             backbone = load_backbone(config["backbone"], device)
             suffix = backbone if injection.cache_key == "images" else backbone.suffix
+            if injection.cache_key == "internal" and config["data"].get("input_mode") == "stream":
+                prefix = backbone.prefix
     generator = None
     if saved["generator"] is not None:
         parameters = saved["generator"]
@@ -33,7 +36,9 @@ def restore_model(saved: dict, device: str, suffix: nn.Module | None = None) -> 
             config["noise"],
         )
         generator.load_state_dict(parameters)
-    return NoisyCBM(cbm, injection, generator, suffix).to(device).eval().requires_grad_(False)
+    return (
+        NoisyCBM(cbm, injection, generator, suffix, prefix).to(device).eval().requires_grad_(False)
+    )
 
 
 class ImagePredictor(nn.Module):

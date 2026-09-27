@@ -1,0 +1,18 @@
+extends: [places365.yaml]
+experiment:
+  name: places365_full
+paths:
+  cache: /home/pengcheng/Pi-CBM/artifacts/cache-places365-full
+  runs: /home/pengcheng/Pi-CBM/artifacts/runs-places365-full
+data:
+  # Zero selects every available image after the 50/class adapter holdout.
+  train_per_class: 0
+  version: places365-standard-fulltrain-adapterval50-v1
+baseline:
+  # Reassemble the held-out images so the clean LF-CBM sees all 1,803,460
+  # official training examples; adapters still use an independent validation set.
+  include_adapter_val: true
+training:
+  batch_size: 64
+  precision: bfloat16
+  cache_internal: true

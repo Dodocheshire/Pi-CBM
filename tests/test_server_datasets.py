@@ -51,3 +51,38 @@ def test_places_uses_official_labels_and_separate_evaluation_split(monkeypatch):
     _, _, repeated = make_splits(config)
     for key in indices:
         assert indices[key].tolist() == repeated[key].tolist()
+
+
+def test_imagenet_uses_preselected_train_and_adapter_validation(tmp_path):
+    subset = tmp_path / "subset"
+    official = tmp_path / "official_val"
+    for root, split, count in (
+        (subset, "train", 3),
+        (subset, "adapter_val", 2),
+        (official, "", 2),
+    ):
+        for wnid in ("n00000001", "n00000002"):
+            directory = root / split / wnid
+            directory.mkdir(parents=True)
+            for index in range(count):
+                Image.new("RGB", (4, 4)).save(directory / f"{index}.JPEG")
+    config = load_config("configs/server/imagenet.yaml")
+    config["data"].update(
+        root=str(subset),
+        official_val_root=str(official),
+        train_per_class=3,
+        val_per_class=2,
+    )
+    train, test, indices = make_splits(config)
+    assert train.class_to_idx == test.class_to_idx
+    assert len(indices["train"]) == 6
+    assert len(indices["val"]) == 4
+    assert len(indices["test"]) == 4
+    assert not set(indices["train"]) & set(indices["val"])
+    assert Counter(train.targets[i] for i in indices["train"]) == {0: 3, 1: 3}
+    assert Counter(train.targets[i] for i in indices["val"]) == {0: 2, 1: 2}
+    assert all("adapter_val" in train.samples[i][0] for i in indices["val"])
+    config["experiment"]["seed"] = 7
+    _, _, repeated = make_splits(config)
+    for key in indices:
+        assert (indices[key] == repeated[key]).all()

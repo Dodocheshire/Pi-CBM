@@ -13,11 +13,13 @@ from pathlib import Path
 import torch
 import yaml
 from torch import nn
+from torch.utils.data import DataLoader
 
 from .data import digest, prepare_data
 from .evaluation import evaluate
 from .generators import NoiseGenerator
 from .injections import build_injection, channel_scale
+from .inputs import ImagePaths, cache_internal_inputs
 from .models import ConceptBottleneck, NoisyCBM
 from .models.backbones import load_backbone
 from .models.import_lfcbm import import_lfcbm
@@ -78,25 +80,59 @@ def get_baseline(data, cache_path, config, device):
     return cbm, selected, metrics
 
 
+def generator_channel_scale(data, key, config, backbone, device):
+    """Calibrate noise in injected-feature units without retaining spatial inputs."""
+    if key in data["splits"]["train"]:
+        return channel_scale(data["splits"]["train"][key])
+
+    scale_path = Path(config["paths"]["cache"]) / (
+        f"channel-scale-{digest([data['identity'], key])[:16]}.pt"
+    )
+    if scale_path.exists():
+        return torch.load(scale_path, weights_only=True)
+
+    images = ImagePaths(data["splits"]["train"]["image_paths"], config["backbone"]["name"])
+    loader = DataLoader(
+        images,
+        batch_size=config["data"]["batch_size"],
+        num_workers=config["data"].get("num_workers", 0),
+        pin_memory=device.startswith("cuda"),
+    )
+
+    def feature_batches():
+        with torch.no_grad():
+            for image_batch in loader:
+                image_batch = image_batch.to(device)
+                yield backbone.prefix(image_batch) if key == "internal" else image_batch
+
+    scale = channel_scale(feature_batches())
+    torch.save(scale, scale_path)
+    return scale
+
+
 def build_model(cbm, data, selected, config, device):
     injection = build_injection(config["injection"]["site"])
     suffix = nn.Identity()
+    prefix = None
+    backbone = None
     if injection.cache_key in {"internal", "images"}:
         backbone = load_backbone(config["backbone"], device)
         suffix = backbone if injection.cache_key == "images" else backbone.suffix
+        if injection.cache_key == "internal" and "internal" not in data["splits"]["train"]:
+            prefix = backbone.prefix
     generator = None
     if config["injection"]["site"] != "baseline":
-        values = data["splits"]["train"][injection.cache_key]
+        scale = generator_channel_scale(data, injection.cache_key, config, backbone, device)
         # Initialization must not depend on whether feature/baseline caches
         # were freshly created or loaded earlier in this process.
         with seeded(config["experiment"]["seed"]):
             generator = NoiseGenerator(
-                values.shape[1],
+                scale.numel(),
                 data["text"][selected],
-                channel_scale(values),
+                scale,
                 config["noise"],
             ).to(device)
-    return NoisyCBM(cbm, injection, generator, suffix).to(device)
+    return NoisyCBM(cbm, injection, generator, suffix, prefix).to(device)
 
 
 def run_experiment(config: dict) -> Path:
@@ -117,23 +153,48 @@ def run_experiment(config: dict) -> Path:
         shutil.copy2(filename, run_dir / "source" / filename)
     data, cache_path = prepare_data(config, device)
     cbm, selected, baseline_metrics = get_baseline(data, cache_path, config, device)
+    if config["injection"]["site"] == "target_internal" and config["training"]["cache_internal"]:
+        cache_internal_inputs(data, config, device)
+    clean_evaluation_config = {
+        **config,
+        "training": {**config["training"], "precision": "float32"},
+    }
     clean_concepts = {}
+    # A clean baseline only evaluates the official validation set. Avoid
+    # materializing concept vectors for millions of unused training images.
+    splits = ("test",) if config["injection"]["site"] == "baseline" else data["splits"]
     with torch.no_grad():
-        for name, split in data["splits"].items():
+        for name in splits:
+            split = data["splits"][name]
             clean_concepts[name] = torch.cat(
                 [cbm.concepts(batch.to(device)).cpu() for batch in split["features"].split(256)]
             )
     clean_model = NoisyCBM(cbm, build_injection("baseline"), None, nn.Identity())
     baseline_test = evaluate(
-        clean_model, data["splits"]["test"], clean_concepts["test"], selected, config, device
+        clean_model,
+        data["splits"]["test"],
+        clean_concepts["test"],
+        selected,
+        clean_evaluation_config,
+        device,
     )
     print(f"Clean baseline test: {baseline_test}", flush=True)
     model = build_model(cbm, data, selected, config, device)
     seed_all(config["experiment"]["seed"])
     history, refit = adapt(model, data, clean_concepts, selected, config, device)
     with seeded(config["experiment"]["seed"] + 3000):
+        evaluation_config = (
+            clean_evaluation_config
+            if config["injection"]["site"] == "baseline"
+            else config
+        )
         metrics = evaluate(
-            model, data["splits"]["test"], clean_concepts["test"], selected, config, device
+            model,
+            data["splits"]["test"],
+            clean_concepts["test"],
+            selected,
+            evaluation_config,
+            device,
         )
     torch.save(
         {

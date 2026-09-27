@@ -9,7 +9,7 @@ import clip
 import numpy as np
 import torch
 from torch.nn import functional as F
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import ConcatDataset, DataLoader, Dataset
 from torchvision import datasets
 from tqdm import tqdm
 
@@ -58,6 +58,22 @@ class PairedImages(Dataset):
         return self.target_transform(image), self.teacher_transform(image), label
 
 
+class ImageNetTrain(ConcatDataset):
+    """Keep the fixed 100/10 train split while exposing one training index space."""
+
+    def __init__(self, root: Path):
+        training = datasets.ImageFolder(str(root / "train"))
+        adapter_val = datasets.ImageFolder(str(root / "adapter_val"))
+        if training.class_to_idx != adapter_val.class_to_idx:
+            raise ValueError("ImageNet train and adapter_val must use the same WNIDs")
+        super().__init__([training, adapter_val])
+        self.train_count = len(training)
+        self.classes = training.classes
+        self.class_to_idx = training.class_to_idx
+        self.targets = training.targets + adapter_val.targets
+        self.samples = training.samples + adapter_val.samples
+
+
 def stratified_indices(labels, count: int, rng) -> tuple[np.ndarray, np.ndarray]:
     """count is per class; zero means all available examples."""
     chosen, remaining = [], []
@@ -92,8 +108,25 @@ def make_splits(config: dict):
         # Hold out validation examples from train-standard; official val is test here.
         train = datasets.Places365(root, split="train-standard", small=True, download=False)
         test = datasets.Places365(root, split="val", small=True, download=False)
+    elif cfg["dataset"] == "imagenet":
+        # The mirror subset already has a fixed adapter-validation split.
+        # Never resample it when an experiment seed changes.
+        train = ImageNetTrain(Path(root))
+        test = datasets.ImageFolder(cfg["official_val_root"])
+        if train.class_to_idx != test.class_to_idx:
+            raise ValueError("ImageNet train and official validation WNIDs differ")
+        indices = {
+            "train": np.arange(train.train_count),
+            "val": np.arange(train.train_count, len(train)),
+            "test": np.arange(len(test)),
+        }
+        for name, count in (("train", cfg["train_per_class"]), ("val", cfg["val_per_class"])):
+            labels = np.asarray(train.targets)[indices[name]]
+            if not np.all(np.bincount(labels, minlength=len(train.classes)) == count):
+                raise ValueError(f"ImageNet {name} does not contain {count} images per class")
+        return train, test, indices
     else:
-        raise ValueError("Supported datasets: cifar10, cifar100, cub, places365")
+        raise ValueError("Supported datasets: cifar10, cifar100, cub, places365, imagenet")
     rng = np.random.default_rng(split_seed(config))
     if cfg["val_per_class"] < 1:
         raise ValueError("A positive val_per_class is required for model selection")
@@ -118,6 +151,13 @@ def prepare_data(config: dict, device: str) -> tuple[dict, Path]:
         "concepts": concepts,
         "torchvision": __import__("torchvision").__version__,
     }
+    if config["data"]["dataset"] == "imagenet":
+        subset = Path(config["data"]["root"])
+        if not (subset / "COMPLETE").exists():
+            raise ValueError("ImageNet subset download is not complete")
+        identity["subset_manifest_sha256"] = hashlib.sha256(
+            (subset / "manifest.jsonl").read_bytes()
+        ).hexdigest()
     cache_path = Path(config["paths"]["cache"]) / f"features-{digest(identity)[:16]}.pt"
     if cache_path.exists():
         print(f"Reusing {cache_path}", flush=True)
@@ -200,6 +240,10 @@ def prepare_data(config: dict, device: str) -> tuple[dict, Path]:
                 "labels": torch.cat(labels),
                 "indices": torch.tensor(selection),
             }
+            if config["data"].get("input_mode", "cache") == "stream":
+                # Places365 exposes its file list as imgs; ImageFolder uses samples.
+                paths = source.imgs if config["data"]["dataset"] == "places365" else source.samples
+                split_data["image_paths"] = [paths[int(index)][0] for index in selection]
             if config["data"]["cache_internal"]:
                 split_data["internal_file"] = str(internal_path)
                 split_data["internal_shape"] = internal_shape

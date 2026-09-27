@@ -21,18 +21,28 @@ class ConceptBottleneck(nn.Module):
 
 
 class NoisyCBM(nn.Module):
-    def __init__(self, cbm, injection, generator, suffix):
+    def __init__(self, cbm, injection, generator, suffix, prefix=None):
         super().__init__()
         self.cbm = cbm
         self.injection = injection
         self.generator = generator
         self.suffix = suffix
+        self.prefix = prefix
 
     def train(self, mode: bool = True):
         super().train(mode)
         # Frozen BatchNorm statistics must not change during generator training.
         self.suffix.eval()
+        if self.prefix is not None:
+            self.prefix.eval()
         return self
+
+    def prepare_inputs(self, inputs: torch.Tensor) -> torch.Tensor:
+        """For streamed internal noise, compute the frozen prefix per batch."""
+        if self.prefix is None:
+            return inputs
+        with torch.no_grad():
+            return self.prefix(inputs)
 
     def encode_concepts(self, inputs: torch.Tensor):
         return self.injection(self, inputs)

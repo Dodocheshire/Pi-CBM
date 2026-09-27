@@ -1,5 +1,6 @@
 import json
 from copy import deepcopy
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -15,6 +16,7 @@ from pi_cbm.models.import_lfcbm import import_lfcbm
 from pi_cbm.pipeline import build_model, cpu_state
 from pi_cbm.randomness import seeded
 from pi_cbm.training.adapt import adapt
+from scripts.run_server_suite import experiments
 
 
 def small_data():
@@ -53,6 +55,15 @@ def test_removed_options_are_rejected_before_training():
         load_config("configs/base.yaml", ["inference.mode=mean_probs"])
     with pytest.raises(ValueError, match="cache_images"):
         load_config("configs/base.yaml", ["injection.site=target_image", "injection.point=input"])
+
+
+def test_imagenet_suite_streams_images_without_changing_cub_refit_baseline():
+    imagenet = dict(experiments(Path("configs/server/imagenet.yaml"), [0]))
+    assert imagenet["baseline"]["training"]["stage"] == "generator_only"
+    assert imagenet["target_image-mean_scale-seed0"]["data"]["cache_images"] is False
+    assert imagenet["target_image-mean_scale-seed0"]["data"]["input_mode"] == "stream"
+    cub = dict(experiments(Path("configs/server/cub_refit.yaml"), [0]))
+    assert cub["baseline"]["training"]["stage"] == "refit_head"
 
 
 def test_stratified_split_is_disjoint_and_reproducible():
@@ -94,10 +105,7 @@ def test_nec_counts_effective_head_weights_per_class(make_model):
 def test_gradient_clip_zero_prevents_generator_update(make_model):
     data = small_data()
     reference = make_model(site="baseline").cbm
-    clean = {
-        name: reference.concepts(split["features"])
-        for name, split in data["splits"].items()
-    }
+    clean = {name: reference.concepts(split["features"]) for name, split in data["splits"].items()}
     frozen, trainable = make_model(), make_model()
     initial = deepcopy(frozen.generator.state_dict())
     config = load_config(

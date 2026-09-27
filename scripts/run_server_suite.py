@@ -13,18 +13,22 @@ from pi_cbm.config import load_config
 
 
 def experiments(config_path: Path, seeds: list[int]):
+    base = load_config(config_path)
+    baseline_overrides = ["injection.site=baseline", "experiment.name=baseline"]
+    if base["training"]["stage"] == "finetune_projection":
+        baseline_overrides.append("training.stage=generator_only")
     yield (
         "baseline",
-        load_config(config_path, ["injection.site=baseline", "experiment.name=baseline"]),
+        load_config(config_path, baseline_overrides),
     )
     for site in ("target_global", "target_internal", "target_image"):
         for seed in seeds:
             name = f"{site}-mean_scale-seed{seed}"
-            storage = (
-                ["injection.point=input", "data.cache_images=true", "data.cache_internal=false"]
-                if site == "target_image"
-                else []
-            )
+            storage = []
+            if site == "target_image":
+                storage.append("injection.point=input")
+                if base["data"].get("input_mode", "cache") == "cache":
+                    storage.extend(["data.cache_images=true", "data.cache_internal=false"])
             config = load_config(
                 config_path,
                 [
@@ -70,6 +74,7 @@ def run_suite(configurations, gpu: str, name: str):
         signature = digest({"config": config, "source": implementation})
         if signature in progress["completed"]:
             continue
+        progress.pop("error", None)
         progress.update(status="running", current=name, gpu=gpu)
         save()
         print(f"Starting {name}", flush=True)

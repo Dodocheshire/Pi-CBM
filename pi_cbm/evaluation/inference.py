@@ -3,6 +3,8 @@
 import torch
 from torch.nn import functional as F
 
+from ..inputs import input_loader
+from ..precision import adapter_autocast
 from ..training.lfcbm import cos_cubed
 
 
@@ -19,13 +21,13 @@ def predict(model, inputs, intervention=None):
 def evaluate(model, split: dict, clean_concepts: torch.Tensor, selected, config: dict, device: str):
     model.eval()
     probability_batches, concept_batches = [], []
-    inputs = split[model.injection.cache_key]
-    for start in range(0, len(inputs), config["data"]["batch_size"]):
-        stop = start + config["data"]["batch_size"]
-        batch = inputs[start:stop]
-        probabilities, concepts = predict(model, batch.float().to(device))
-        probability_batches.append(probabilities.cpu())
-        concept_batches.append(concepts.cpu())
+    loader = input_loader(split, model, config, batch_size=config["data"]["batch_size"])
+    for (batch,) in loader:
+        inputs = model.prepare_inputs(batch.to(device, non_blocking=True))
+        with adapter_autocast(config):
+            probabilities, concepts = predict(model, inputs)
+        probability_batches.append(probabilities.float().cpu())
+        concept_batches.append(concepts.float().cpu())
     probabilities, concepts = torch.cat(probability_batches), torch.cat(concept_batches)
     labels = split["labels"]
     weights = model.cbm.head.weight

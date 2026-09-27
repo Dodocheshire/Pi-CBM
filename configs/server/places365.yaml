@@ -1,13 +1,47 @@
-extends: [cifar10.yaml]
+extends: [cifar10_official.yaml, ../backbone/resnet50.yaml]
 experiment:
-  name: server_places365_500perclass
+  name: places365_500perclass
+  seed: 0
+  threads: 8
 paths:
-  # Rebuildable feature cache in RAM; checkpoints and metrics stay on disk.
-  cache: /dev/shm/pi-cbm-places365-500
+  # Keep reusable global features on disk; stream images for spatial injections.
+  cache: /home/pengcheng/Pi-CBM/artifacts/cache-places365-500
+  runs: /home/pengcheng/Pi-CBM/artifacts/runs-places365-500
 data:
   dataset: places365
   root: /home/pengcheng/VLG-CBM/datasets/places365_torch
   concepts: configs/concepts/places365.txt
   train_per_class: 500
   val_per_class: 50
-  version: places365-standard-train500-val50-officialval-test-v1
+  test_per_class: 0
+  batch_size: 64
+  num_workers: 8
+  split_seed: 0
+  input_mode: stream
+  cache_internal: false
+  cache_images: false
+  version: places365-standard-train500-val50-officialval-test-v2
+teacher:
+  name: ViT-B/16
+  precision: native
+baseline:
+  import_dir: null
+  include_adapter_val: false
+  validation_split: test
+  activation_cutoff: 0.28
+  interpretability_cutoff: 0.45
+  projection_steps: 1000
+  projection_lr: 0.001
+  projection_batch_size: 50000
+  head:
+    steps: 80
+    batch_size: 256
+    lr: 0.1
+    lambda: 0.0003
+    alpha: 0.99
+injection:
+  site: target_global
+  point: pre_layer4
+training:
+  stage: finetune_projection
+  batch_size: 16
