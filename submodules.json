@@ -9,7 +9,7 @@
       "remote": "https://github.com/Dodocheshire/LF-Pi.git",
       "visibility": "private",
       "branch": "main",
-      "commit": "b08d44c086552b3f24c7c09d5c5b649635d439f7"
+      "commit": "27d512d665917dfad39f978998bb40ff6cbe0e3b"
     },
     {
       "path": "D-Pi",
@@ -28,6 +28,17 @@
       "visibility": "private",
       "branch": "main",
       "commit": "1deca93b2b195eb08f0cab35551845b926d058fb"
+    },
+    {
+      "path": "SALF-Pi",
+      "baseline": "Spatially-Aware and Label-Free CBM",
+      "publication_year": 2025,
+      "remote": "https://github.com/Dodocheshire/SALF-Pi.git",
+      "visibility": "private",
+      "branch": "main",
+      "commit": "da0f1d8eb4952b746bd8213cc5df6c6885a5c474",
+      "upstream": "https://github.com/itaybenou/show-and-tell.git",
+      "upstream_commit": "e45f8645afde37a8a7ae66db6987b5a8a53552a0"
     }
   ]
 }
