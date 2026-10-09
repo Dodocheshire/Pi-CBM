@@ -1,6 +1,0 @@
-injection:
-  site: target_image
-  point: input
-data:
-  cache_images: true
-  cache_internal: false

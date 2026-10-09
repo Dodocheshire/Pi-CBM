@@ -1,3 +1,0 @@
-extends: [../base.yaml, ../injection/global.yaml]
-experiment:
-  name: cifar10_global

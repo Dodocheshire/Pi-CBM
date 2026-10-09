@@ -1,3 +1,0 @@
-extends: [../base.yaml, ../injection/image.yaml]
-experiment:
-  name: cifar10_image

@@ -1,0 +1,9 @@
+[submodule "LF-Pi"]
+	path = LF-Pi
+	url = https://github.com/Dodocheshire/LF-Pi.git
+[submodule "D-Pi"]
+	path = D-Pi
+	url = https://github.com/Dodocheshire/D-Pi.git
+[submodule "PS-Shared-Pi"]
+	path = PS-Shared-Pi
+	url = https://github.com/Dodocheshire/PS-Shared-Pi.git

@@ -5,3 +5,10 @@ __pycache__/
 .ruff_cache/
 artifacts/
 .DS_Store
+.upstream/
+D-Pi/outputs/
+D-Pi/data/Datasets/**/*.torch
+D-Pi/data/Embeddings/**/*.torch
+D-Pi/data/Segments/**/*.torch
+D-Pi/clusters/
+D-Pi/processed_data/

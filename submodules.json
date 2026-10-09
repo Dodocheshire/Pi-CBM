@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "owner": "Dodocheshire",
+  "submodules": [
+    {
+      "path": "LF-Pi",
+      "baseline": "LF-CBM",
+      "publication_year": 2023,
+      "remote": "https://github.com/Dodocheshire/LF-Pi.git",
+      "visibility": "private",
+      "branch": "main",
+      "commit": "b08d44c086552b3f24c7c09d5c5b649635d439f7"
+    },
+    {
+      "path": "D-Pi",
+      "baseline": "DCBM",
+      "publication_year": 2025,
+      "remote": "https://github.com/Dodocheshire/D-Pi.git",
+      "visibility": "private",
+      "branch": "main",
+      "commit": "546c2bb393200064cfa809e195a21b8dbc5f93b2"
+    },
+    {
+      "path": "PS-Shared-Pi",
+      "baseline": "Partially Shared CBM",
+      "publication_year": 2026,
+      "remote": "https://github.com/Dodocheshire/PS-Shared-Pi.git",
+      "visibility": "private",
+      "branch": "main",
+      "commit": "9d1d1cc0120268bd4485e48821bb26271624e0a8"
+    }
+  ]
+}

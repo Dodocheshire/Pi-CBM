@@ -1,3 +1,0 @@
-extends: [../base.yaml, ../backbone/resnet18.yaml, ../injection/baseline.yaml]
-experiment:
-  name: cifar10_baseline
