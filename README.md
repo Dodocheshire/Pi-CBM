@@ -8,6 +8,7 @@
 | [D-Pi](D-Pi/PI_README.md) | DCBM（ICML 2025）官方实现与 Pi 研究 | [Dodocheshire/D-Pi](https://github.com/Dodocheshire/D-Pi) |
 | [PS-Shared-Pi](PS-Shared-Pi/README.md) | Partially Shared CBM（AAAI 2026）最终实验与图表 | [Dodocheshire/PS-Shared-Pi](https://github.com/Dodocheshire/PS-Shared-Pi) |
 | [SALF-Pi](SALF-Pi/EXPERIMENT_REPORT.md) | SALF-CBM（CVPR 2025）官方空间模型、预训练基线复验与可微加噪入口 | [Dodocheshire/SALF-Pi](https://github.com/Dodocheshire/SALF-Pi) |
+| [PiNI](PiNI/EXPERIMENT_RESULT.md) | PiNI（AAAI 2025）官方复现与概念条件 RGB 空间加噪 CBM | [Dodocheshire/PiNI](https://github.com/Dodocheshire/PiNI) |
 
 ```bash
 git clone --recurse-submodules https://github.com/Dodocheshire/Pi-CBM.git
@@ -22,3 +23,5 @@ LF 实验从 `LF-Pi/` 启动，DCBM 从 `D-Pi/` 启动，PS 新阶段从 `PS-Sha
 PS-Shared最终主要结果见[EXPERIMENT_RESULT.md](PS-Shared-Pi/EXPERIMENT_RESULT.md)：三个数据集五种子干净基线测试、CUB七组控制的独立五种子测试、配对区间、属性保护及概念输出精简。共享噪声未证明额外准确率收益；默认确定性适配模型在测试前选定。
 
 LF-Pi 的背景机制核查与真实加噪可视化见 [NOISE_MECHANISM_REPORT.md](LF-Pi/NOISE_MECHANISM_REPORT.md)：主要增益可由任务投影和确定性均值适配解释，尚未证实背景去干扰或真实概念精确率提升。下一阶段优先选 SALF-CBM，已复验官方 ImageNet 基线为 75.56%；目前仅完成加噪入口验证，没有 SALF 加噪提升结论。
+
+当前新目标转向 PiNI 的真实图像噪声机制，并开发带原生概念瓶颈的空间模型。进度、固定验证样本的真实 μ/σ² 可视化、概念精度与匹配控制见 [PiNI/EXPERIMENT_RESULT.md](PiNI/EXPERIMENT_RESULT.md)。PiNI 原方法不是 CBM；新增实现严格通过 18 个命名概念分类，使用概念/区域监督，推理不读取真值掩膜。

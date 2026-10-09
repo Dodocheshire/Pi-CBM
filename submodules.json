@@ -39,6 +39,17 @@
       "commit": "da0f1d8eb4952b746bd8213cc5df6c6885a5c474",
       "upstream": "https://github.com/itaybenou/show-and-tell.git",
       "upstream_commit": "e45f8645afde37a8a7ae66db6987b5a8a53552a0"
+    },
+    {
+      "path": "PiNI",
+      "baseline": "PiNI reproduction and spatial concept-conditioned noise CBM",
+      "publication_year": 2025,
+      "remote": "https://github.com/Dodocheshire/PiNI.git",
+      "visibility": "private",
+      "branch": "main",
+      "commit": "7758f9622fa71b890fda0949b90354b1fb4014a4",
+      "upstream": "https://github.com/hyzhang98/PiNI.git",
+      "upstream_commit": "c6f89a4bcb76a33fc8ad3a7e7992b5c110630c00"
     }
   ]
 }

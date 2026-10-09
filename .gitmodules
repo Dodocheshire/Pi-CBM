@@ -10,3 +10,6 @@
 [submodule "SALF-Pi"]
 	path = SALF-Pi
 	url = https://github.com/Dodocheshire/SALF-Pi.git
+[submodule "PiNI"]
+	path = PiNI
+	url = https://github.com/Dodocheshire/PiNI.git

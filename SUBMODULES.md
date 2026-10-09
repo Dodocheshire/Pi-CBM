@@ -1,6 +1,6 @@
 # 基线子仓库管理
 
-主项目 `Pi-CBM` 将实验实现保存为四个 submodule，均关联到 `Dodocheshire` 账号下的私有仓库。主项目提交记录固定的子仓库提交；克隆需要对这些私有仓库有访问权限。
+主项目 `Pi-CBM` 将实验实现保存为五个 submodule，均关联到 `Dodocheshire` 账号下的私有仓库。主项目提交记录固定的子仓库提交；克隆需要对这些私有仓库有访问权限。
 
 | 路径 | 基线 | 独立远端 |
 | --- | --- | --- |
@@ -8,10 +8,13 @@
 | `D-Pi` | DCBM，ICML 2025 | https://github.com/Dodocheshire/D-Pi |
 | `PS-Shared-Pi` | Partially Shared CBM，AAAI 2026 | https://github.com/Dodocheshire/PS-Shared-Pi |
 | `SALF-Pi` | Spatially-Aware and Label-Free CBM，CVPR 2025 | https://github.com/Dodocheshire/SALF-Pi |
+| `PiNI` | PiNI，AAAI 2025；新增空间噪声 CBM | https://github.com/Dodocheshire/PiNI |
 
 LF 子仓库继承迁移前 Pi-CBM 的历史，包括远端 ImageNet 与 Places365 的更新；现有服务器路径迁移保持不变。D 子仓库继承官方 DCBM 提交历史，并通过 `upstream` remote 与 `UPSTREAM.json` 保存来源。PS 子仓库在 `official/` 中保留逐文件核验的官方源码，`upstream` 指向原作者仓库。以后新增实现目录按同样方式独立建仓库，再注册为 submodule；只有论文笔记的 `Essay` 候选目录无需建独立代码仓库。
 
 SALF 子仓库保留官方完整历史，`upstream` 指向 `itaybenou/show-and-tell`；本地新增的空间加噪封装及基线复验见 `SALF-Pi/EXPERIMENT_REPORT.md`。官方完整训练代码尚未发布，当前入口基于已发布预训练模型适配。
+
+PiNI 子仓库保留 `hyzhang98/PiNI` 的完整历史，`upstream` 指向官方仓库。原神经网络定义保持不变；新增框架包装、空间概念模型、训练对照和校正 RGB 可视化位于 `pini_cbm/`，结果见 `PiNI/EXPERIMENT_RESULT.md`。新模型使用原生概念及区域监督，不宣称 label-free。
 
 首次获取：
 
