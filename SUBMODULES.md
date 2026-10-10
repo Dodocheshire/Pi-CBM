@@ -14,7 +14,7 @@ LF 子仓库继承迁移前 Pi-CBM 的历史，包括远端 ImageNet 与 Places3
 
 SALF 子仓库保留官方完整历史，`upstream` 指向 `itaybenou/show-and-tell`；本地新增的空间加噪封装及基线复验见 `SALF-Pi/EXPERIMENT_REPORT.md`。官方完整训练代码尚未发布，当前入口基于已发布预训练模型适配。
 
-PiNI 子仓库保留 `hyzhang98/PiNI` 的完整历史，`upstream` 指向官方仓库。原神经网络定义保持不变；新增框架包装、空间概念模型、训练对照和校正 RGB 可视化位于 `pini_cbm/`，结果见 `PiNI/EXPERIMENT_RESULT.md`。新模型使用原生概念及区域监督，不宣称 label-free。
+PiNI 子仓库保留 `hyzhang98/PiNI` 的完整历史，`upstream` 指向官方仓库。空间概念模型、RGB 加噪、LF-CBM 与监督 CBM 对照位于 `pini_cbm/`，统一报告见 [PiNI/EXPERIMENT_REPORT.md](PiNI/EXPERIMENT_REPORT.md)。实验覆盖 RIVAL10、CUB、CIFAR-10、CIFAR-100；RIVAL10 与 CUB 使用原生概念及区域标注，CIFAR 使用 CLIP 软概念与 GroundingDINO/SAM2 图像区域。
 
 首次获取：
 
